@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "LLM 诊断 Demo",
+  "version": "0.1.0",
+  "description": "抓取页面数据后直接发送到分析后端，并在插件内展示 LLM 诊断结果。",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "action": {
+    "default_title": "LLM 诊断 Demo",
+    "default_popup": "popup.html"
+  }
+}

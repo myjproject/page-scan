@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "页面蓝本采集器",
+  "version": "0.1.0",
+  "description": "面向页面结构探索的蓝本采集插件，输出标准字段和蓝本结构。",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads"
+  ],
+  "action": {
+    "default_title": "页面蓝本采集器",
+    "default_popup": "popup.html"
+  }
+}

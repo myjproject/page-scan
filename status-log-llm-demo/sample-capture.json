@@ -1,0 +1,82 @@
+{
+  "captureMode": "production",
+  "entityType": "rjob",
+  "activeTab": "statusLog",
+  "standardized": [
+    {
+      "key": "basicInfo",
+      "label": "基本信息",
+      "fields": [
+        {
+          "key": "rjobId",
+          "label": "RJob ID",
+          "value": "job-123"
+        },
+        {
+          "key": "creator",
+          "label": "创建者",
+          "value": "alice"
+        },
+        {
+          "key": "status",
+          "label": "状态",
+          "value": "failed"
+        }
+      ]
+    }
+  ],
+  "statusLogInfo": {
+    "key": "statusLogInfo",
+    "label": "状态日志",
+    "entries": [
+      {
+        "fields": [
+          {
+            "key": "time",
+            "label": "时间",
+            "value": "2026-06-12 16:00:00"
+          },
+          {
+            "key": "reason",
+            "label": "原因",
+            "value": "ImagePullBackOff"
+          },
+          {
+            "key": "info",
+            "label": "信息",
+            "value": "failed to pull image demo:latest"
+          },
+          {
+            "key": "source",
+            "label": "来源",
+            "value": "kubelet"
+          }
+        ]
+      },
+      {
+        "fields": [
+          {
+            "key": "time",
+            "label": "时间",
+            "value": "2026-06-12 16:01:00"
+          },
+          {
+            "key": "reason",
+            "label": "原因",
+            "value": "BackOff"
+          },
+          {
+            "key": "info",
+            "label": "信息",
+            "value": "back-off pulling image"
+          },
+          {
+            "key": "source",
+            "label": "来源",
+            "value": "kubelet"
+          }
+        ]
+      }
+    ]
+  }
+}

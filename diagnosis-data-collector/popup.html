@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>诊断数据采集器</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="hero">
+        <p class="eyebrow">Production Mode</p>
+        <h1>诊断数据采集器</h1>
+        <p class="subtitle">只输出可直接给后端使用的标准化诊断数据。</p>
+      </header>
+
+      <section class="panel controls">
+        <button id="captureBtn" class="primary">抓取当前页面</button>
+        <button id="downloadBtn" class="secondary" disabled>导出 JSON</button>
+        <p id="status" class="status">等待抓取</p>
+      </section>
+
+      <section class="panel">
+        <h2>提取结果</h2>
+        <dl class="facts">
+          <div><dt>页面类型</dt><dd id="pageType">-</dd></div>
+          <div><dt>当前子页</dt><dd id="activeTab">-</dd></div>
+          <div><dt>任务 ID</dt><dd id="taskId">-</dd></div>
+          <div><dt>用户名</dt><dd id="username">-</dd></div>
+          <div><dt>状态</dt><dd id="taskStatus">-</dd></div>
+          <div><dt>日志片段</dt><dd id="logPreview">-</dd></div>
+          <div><dt>YAML 片段</dt><dd id="yamlPreview">-</dd></div>
+        </dl>
+      </section>
+
+      <section class="panel">
+        <h2>完整快照</h2>
+        <textarea id="snapshot" readonly placeholder="抓取结果会显示在这里"></textarea>
+      </section>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
