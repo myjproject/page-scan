@@ -103,14 +103,14 @@
 1. 先启动后端服务：
 
 ```bash
-cd /Users/che/projects/html/status-log-llm-demo
+cd status-log-llm-demo
 npm install
 npm start
 ```
 
 2. 再在 Chrome 里加载插件：
 
-- `/Users/che/projects/html/llm-diagnosis-demo`
+- `llm-diagnosis-demo`
 
 3. 在插件里点击：
 

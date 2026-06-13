@@ -20,7 +20,7 @@
 
 直接编辑这个文件：
 
-[.env](/Users/che/projects/html/status-log-llm-demo/.env)
+`.env`
 
 把这些值填进去：
 
@@ -36,7 +36,7 @@ PORT=3001
 1. 进入目录：
 
 ```bash
-cd /Users/che/projects/html/status-log-llm-demo
+cd status-log-llm-demo
 ```
 
 2. 安装依赖：
@@ -62,7 +62,7 @@ npm start
 1. 进入目录：
 
 ```powershell
-cd C:\path\to\html\status-log-llm-demo
+cd 你的实际目录\status-log-llm-demo
 ```
 
 2. 安装依赖：

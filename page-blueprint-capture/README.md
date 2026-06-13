@@ -13,7 +13,7 @@
 1. 打开 Chrome 的 `chrome://extensions`
 2. 打开右上角“开发者模式”
 3. 点击“加载已解压的扩展程序”
-4. 选择 `/Users/che/projects/html/page-blueprint-capture`
+4. 选择当前仓库中的 `page-blueprint-capture` 目录
 
 ## 输出内容
 

@@ -210,7 +210,7 @@
 
 当前已知限制已单独记录在：
 
-[KNOWN_LIMITATIONS.md](/Users/che/projects/html/KNOWN_LIMITATIONS.md)
+[KNOWN_LIMITATIONS.md](./KNOWN_LIMITATIONS.md)
 
 目前主要包括：
 

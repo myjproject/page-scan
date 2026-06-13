@@ -14,7 +14,7 @@
 
 真正负责调用 LLM 的，是仓库里的另一个目录：
 
-- `/Users/che/projects/html/status-log-llm-demo`
+- `status-log-llm-demo`
 
 也就是说：
 
@@ -34,21 +34,21 @@
 1. 打开 Chrome 的 `chrome://extensions`
 2. 打开右上角“开发者模式”
 3. 点击“加载已解压的扩展程序”
-4. 选择 `/Users/che/projects/html/llm-diagnosis-demo`
+4. 选择当前仓库中的 `llm-diagnosis-demo` 目录
 
 ## 使用方式
 
 1. 先启动本地分析服务：
 
 ```bash
-cd /Users/che/projects/html/status-log-llm-demo
+cd status-log-llm-demo
 npm install
 npm start
 ```
 
 2. 再加载这个插件：
 
-- `/Users/che/projects/html/llm-diagnosis-demo`
+- `llm-diagnosis-demo`
 
 3. 打开插件，确认“分析接口”地址默认是：
 
