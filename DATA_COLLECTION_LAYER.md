@@ -88,6 +88,147 @@
 - `standardized`：放稳定基础信息
 - 顶层并行字段：放当前子页内容，比如 `statusLogInfo`、`yamlInfo`、`jobLogInfo`
 
+## 当前结构化情况
+
+当前生产版 JSON 的外层基本一致：
+
+```json
+{
+  "captureMode": "production",
+  "capturedAt": "...",
+  "entityType": "...",
+  "activeTab": "...",
+  "standardized": []
+}
+```
+
+其中：
+
+- `standardized`：放稳定基础信息
+- 当前子页内容：放在顶层并行字段
+
+## 开发机
+
+### `standardized` 中当前主要有
+
+- `basicInfo`
+- `resources`
+- `cloudDiskConfig`
+
+### 当前可能出现的子页信息字段
+
+- `processInfo`
+- `statusLogInfo`
+- `monitorInfo`
+- `workerInfo`
+- `cloudDiskInfo`
+- `imageInfo`
+- `instanceInfo`
+- `terminalInfo`
+
+### 数据类型
+
+- `basicInfo / resources / cloudDiskConfig / monitorInfo / terminalInfo`：
+  普通字段结构，内部是 `fields`
+- `processInfo / statusLogInfo / workerInfo / cloudDiskInfo / imageInfo / instanceInfo`：
+  表格结构，内部是 `entries`
+
+## worker
+
+### `standardized` 中当前主要有
+
+- `basicInfo`
+- `resources`
+- `otherInfo`
+
+### 当前可能出现的子页信息字段
+
+- `processInfo`
+- `statusLogInfo`
+- `imageInfo`
+- `terminalInfo`
+
+### 数据类型
+
+- `basicInfo / resources / otherInfo / terminalInfo`：
+  普通字段结构，内部是 `fields`
+- `processInfo / statusLogInfo / imageInfo`：
+  表格结构，内部是 `entries`
+
+## rjob
+
+### `standardized` 中当前主要有
+
+- `basicInfo`
+- `envConfig`
+- `envVars`
+- `resources`
+- `taskConfig`
+
+### 当前可能出现的子页信息字段
+
+- `statusLogInfo`
+- `jobLogInfo`
+- `yamlInfo`
+- `subTaskInfo`
+- `historyReplicaInfo`
+
+### 数据类型
+
+- `basicInfo / envConfig / envVars / resources / taskConfig / jobLogInfo / yamlInfo`：
+  普通字段结构，内部是 `fields`
+- `statusLogInfo / subTaskInfo / historyReplicaInfo`：
+  表格结构，内部是 `entries`
+
+## 当前字段组织方式
+
+当前主要分两类：
+
+### 1. 普通字段结构
+
+用于基础信息、配置项、YAML、日志原文等内容。
+
+结构大致是：
+
+```json
+{
+  "key": "basicInfo",
+  "label": "基本信息",
+  "fields": [
+    {
+      "key": "status",
+      "label": "状态",
+      "value": "运行中"
+    }
+  ]
+}
+```
+
+### 2. 表格结构
+
+用于状态日志、进程、子任务等表格型内容。
+
+结构大致是：
+
+```json
+{
+  "key": "statusLogInfo",
+  "label": "状态日志",
+  "sectionType": "table",
+  "entries": [
+    {
+      "fields": [
+        {
+          "key": "time",
+          "label": "时间",
+          "value": "2026-06-12 16:00:00"
+        }
+      ]
+    }
+  ]
+}
+```
+
 ## 两类采集模式
 
 当前有两种模式：
