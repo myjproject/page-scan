@@ -140,5 +140,4 @@ flowchart LR
 
 ## 相关文档
 
-- `PROJECT_OVERVIEW.md`：更详细的项目背景和当前采集能力说明
 - `DATA_COLLECTION_LAYER.md`：数据采集层的定位、流程和扩展方法
