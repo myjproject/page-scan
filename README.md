@@ -17,7 +17,15 @@ node -v
 npm -v
 ```
 
-进入 `status-log-llm-demo` 目录，先编辑 `.env`：
+进入 `status-log-llm-demo` 目录后，先从 `.env.example` 复制一份生成 `.env`。
+
+Windows 可以直接这样做：
+
+- 右键 `.env.example`
+- 复制一份
+- 把副本改名成 `.env`
+
+然后再编辑 `.env`：
 
 ```bash
 OPENAI_API_KEY=你的 Key
