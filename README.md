@@ -4,6 +4,19 @@
 
 ### 1. 配置本地后端服务
 
+先确认 Windows 机器已经安装 `Node.js`。
+
+说明：
+
+- 安装 `Node.js` 时，`npm` 会一起安装
+
+安装完成后可先检查：
+
+```powershell
+node -v
+npm -v
+```
+
 进入 `status-log-llm-demo` 目录，先编辑 `.env`：
 
 ```bash
