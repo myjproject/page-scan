@@ -200,7 +200,7 @@ flowchart LR
 
 ### `llm-diagnosis-demo`
 
-插件侧联调 demo。
+生产版页面采集并调用后端 LLM 分析（demo）插件。
 
 作用：
 
