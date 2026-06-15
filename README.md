@@ -1,5 +1,29 @@
 # 智能诊断助手项目
 
+## 如何使用（Demo）
+
+1. 先启动本地后端服务 `status-log-llm-demo`
+
+   Windows 示例：
+
+   ```powershell
+   cd 你的实际目录\status-log-llm-demo
+   npm install
+   npm start
+   ```
+
+   或者直接双击：
+
+   - `status-log-llm-demo/start-windows.bat`
+
+2. 再在 Chrome 中加载插件 `llm-diagnosis-demo`
+
+   - 打开 `chrome://extensions`
+   - 开启开发者模式
+   - 选择当前仓库中的 `llm-diagnosis-demo` 目录
+
+3. 打开目标页面后点击插件，抓取数据并查看 LLM 返回结果
+
 ## 项目目标
 
 这个项目的目标是开发一款智能诊断助手，通过 `Chrome 插件 + 本地后端` 的方式，把技术支持排查任务的过程逐步智能化。
