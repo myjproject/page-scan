@@ -2,27 +2,69 @@
 
 ## 如何使用（Demo）
 
-1. 先启动本地后端服务 `status-log-llm-demo`
+### 1. 配置本地后端服务
 
-   Windows 示例：
+进入 `status-log-llm-demo` 目录，先编辑 `.env`：
 
-   ```powershell
-   cd 你的实际目录\status-log-llm-demo
-   npm install
-   npm start
-   ```
+```bash
+OPENAI_API_KEY=你的 Key
+OPENAI_BASE_URL=你的接口地址
+OPENAI_MODEL=你的模型名
+PORT=3001
+```
 
-   或者直接双击：
+Windows 启动方式：
 
-   - `status-log-llm-demo/start-windows.bat`
+```powershell
+cd 你的实际目录\status-log-llm-demo
+npm install
+npm start
+```
 
-2. 再在 Chrome 中加载插件 `llm-diagnosis-demo`
+或者直接双击：
 
-   - 打开 `chrome://extensions`
-   - 开启开发者模式
-   - 选择当前仓库中的 `llm-diagnosis-demo` 目录
+- `status-log-llm-demo/start-windows.bat`
 
-3. 打开目标页面后点击插件，抓取数据并查看 LLM 返回结果
+启动成功后，后端默认地址是：
+
+```text
+http://localhost:3001/analyze-status-log
+```
+
+### 2. 加载 Chrome 插件
+
+在 Chrome 中打开：
+
+```text
+chrome://extensions
+```
+
+然后：
+
+- 开启开发者模式
+- 点击“加载已解压的扩展程序”
+- 选择当前仓库中的 `llm-diagnosis-demo` 目录
+
+### 3. 开始使用插件
+
+1. 打开你要排查的业务页面
+2. 点击浏览器里的 `LLM 诊断插件`
+3. 确认插件里的“分析接口”是：
+
+```text
+http://localhost:3001/analyze-status-log
+```
+
+4. 点击：
+
+- `抓取并分析`
+
+插件会自动：
+
+- 抓取当前页面数据
+- 在支持的页面里连续切换并抓取多个子页
+- 把完整 JSON 发给本地后端
+- 接收 LLM 返回结果并显示在插件里
 
 ## 项目目标
 
