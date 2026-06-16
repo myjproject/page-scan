@@ -5,13 +5,9 @@
   "description": "面向页面结构探索的蓝本采集插件，输出标准字段和蓝本结构。",
   "permissions": [
     "activeTab",
-    "tabs",
     "scripting",
     "storage",
     "downloads"
-  ],
-  "host_permissions": [
-    "https://h.pjlab.org.cn/*"
   ],
   "action": {
     "default_title": "页面蓝本采集器",

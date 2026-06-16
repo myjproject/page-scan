@@ -1,7 +1,5 @@
 const captureBtn = document.querySelector("#captureBtn");
-const capturePairBtn = document.querySelector("#capturePairBtn");
 const downloadBtn = document.querySelector("#downloadBtn");
-const machineNameInput = document.querySelector("#machineNameInput");
 const statusEl = document.querySelector("#status");
 const pageTypeEl = document.querySelector("#pageType");
 const activeTabEl = document.querySelector("#activeTab");
@@ -12,123 +10,77 @@ const logPreviewEl = document.querySelector("#logPreview");
 const yamlPreviewEl = document.querySelector("#yamlPreview");
 const snapshotEl = document.querySelector("#snapshot");
 
-const FIXED_CAPTURE_URL =
-  "https://h.pjlab.org.cn/tenant-instanceManage/index?lang=zh_CN";
-const MACHINE_NAME_STORAGE_KEY = "fixedMachineName";
 let lastCapture = null;
-let lastCaptureBundle = null;
 
-initializePopup();
+captureBtn.addEventListener("click", async () => {
+  setStatus("正在抓取当前页面...");
+  setBusy(true);
 
-function initializePopup() {
-  if (!captureBtn || !capturePairBtn || !downloadBtn || !statusEl) {
-    console.error("popup 初始化失败：关键节点缺失", {
-      captureBtnFound: Boolean(captureBtn),
-      capturePairBtnFound: Boolean(capturePairBtn),
-      downloadBtnFound: Boolean(downloadBtn),
-      statusElFound: Boolean(statusEl),
-    });
-    if (statusEl) {
-      statusEl.textContent = "插件初始化失败，请重新加载扩展。";
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    if (!tab?.id) {
+      throw new Error("没有找到活动标签页");
     }
+
+    const [{ result }] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: captureCurrentPage,
+    });
+
+    lastCapture = result;
+    renderCapture(result);
+    downloadBtn.disabled = false;
+    setStatus("抓取完成，可以导出 JSON。");
+    await chrome.storage.local.set({ lastCapture });
+  } catch (error) {
+    console.error(error);
+    setStatus(`抓取失败：${error.message}`);
+  } finally {
+    setBusy(false);
+  }
+});
+
+downloadBtn.addEventListener("click", async () => {
+  if (!lastCapture) {
     return;
   }
 
-  captureBtn.addEventListener("click", async () => {
-    setStatus("正在抓取当前页面...");
-    setBusy(true);
-
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-
-      if (!tab?.id) {
-        throw new Error("没有找到活动标签页");
-      }
-
-      const result = await capturePageFromTab(tab.id);
-      lastCapture = result;
-      lastCaptureBundle = null;
-      renderCapture(result);
-      downloadBtn.disabled = false;
-      setStatus("抓取完成，可以导出 JSON。");
-      await chrome.storage.local.set({ lastCapture, lastCaptureBundle: null });
-    } catch (error) {
-      console.error(error);
-      setStatus(`抓取失败：${error.message}`);
-    } finally {
-      setBusy(false);
-    }
+  const blob = new Blob([JSON.stringify(lastCapture, null, 2)], {
+    type: "application/json",
   });
+  const url = URL.createObjectURL(blob);
+  const basicInfo = lastCapture.standardized?.basicInfo || {};
+  const fileId =
+    basicInfo.rjobId ||
+    basicInfo.name ||
+    basicInfo.rjobName ||
+    `${lastCapture.entityType || "capture"}-${Date.now()}`;
 
-  capturePairBtn.addEventListener("click", async () => {
-    setStatus("正在后台隐藏打开实例管理页并搜索指定机器...");
-    setBusy(true);
+  try {
+    await chrome.downloads.download({
+      url,
+      filename: `diagnosis-capture-${sanitizeFileName(fileId)}.json`,
+      saveAs: true,
+    });
+    setStatus("JSON 导出已触发。");
+  } catch (error) {
+    console.error(error);
+    setStatus(`导出失败：${error.message}`);
+  } finally {
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+});
 
-    try {
-      const machineName = (machineNameInput?.value || "").trim();
-      if (!machineName) {
-        throw new Error("请先输入固定机器名");
-      }
-
-      const fixedCapture = await captureMachinePageByName(machineName);
-
-      lastCapture = fixedCapture;
-      lastCaptureBundle = null;
-      renderCapture(fixedCapture);
-      downloadBtn.disabled = false;
-      await chrome.storage.local.set({
-        lastCapture,
-        lastCaptureBundle: null,
-        [MACHINE_NAME_STORAGE_KEY]: machineName,
-      });
-
-      await downloadCapture(fixedCapture, "", false);
-      setStatus("已在后台抓取并导出指定机器页 JSON。");
-    } catch (error) {
-      console.error(error);
-      setStatus(`抓取失败：${error.message}`);
-    } finally {
-      setBusy(false);
-    }
-  });
-
-  downloadBtn.addEventListener("click", async () => {
-    if (!lastCapture) {
-      return;
-    }
-
-    try {
-      await downloadCapture(lastCapture, "", true);
-      setStatus("JSON 导出已触发。");
-    } catch (error) {
-      console.error(error);
-      setStatus(`导出失败：${error.message}`);
-    }
-  });
-
-  hydrateLastCapture().catch((error) => {
-    console.error("hydrateLastCapture 失败", error);
-    setStatus(`初始化失败：${error.message}`);
-  });
-}
+hydrateLastCapture();
 
 async function hydrateLastCapture() {
-  const {
-    lastCapture: storedCapture,
-    lastCaptureBundle: storedBundle,
-    [MACHINE_NAME_STORAGE_KEY]: storedMachineName,
-  } = await chrome.storage.local.get(["lastCapture", "lastCaptureBundle", MACHINE_NAME_STORAGE_KEY]);
-
-  if (machineNameInput && storedMachineName) {
-    machineNameInput.value = storedMachineName;
-  }
-
+  const { lastCapture: storedCapture } = await chrome.storage.local.get("lastCapture");
   if (!storedCapture) {
     return;
   }
 
   lastCapture = storedCapture;
-  lastCaptureBundle = null;
   renderCapture(storedCapture);
   downloadBtn.disabled = false;
   setStatus("已恢复上一次抓取结果。");
@@ -172,7 +124,6 @@ function setStatus(message) {
 
 function setBusy(busy) {
   captureBtn.disabled = busy;
-  capturePairBtn.disabled = busy;
 }
 
 function sanitizeFileName(value) {
@@ -188,401 +139,6 @@ function arrayToMap(items) {
       .filter((item) => item && item.key)
       .map((item) => [item.key, item])
   );
-}
-
-function getCaptureMachineName(capture) {
-  const basicInfoSection = (capture?.standardized || []).find((section) => section?.key === "basicInfo");
-  const basicInfo = arrayToMap(basicInfoSection?.fields || []);
-  return String(basicInfo.name?.value || "").trim();
-}
-
-function normalizeMachineName(value) {
-  return String(value || "").replace(/\s+/g, " ").trim().toLowerCase();
-}
-
-async function capturePageFromTab(tabId) {
-  const [{ result }] = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: captureCurrentPage,
-  });
-
-  return result;
-}
-
-async function captureFixedPage(targetUrl) {
-  const createdTab = await chrome.tabs.create({
-    url: targetUrl,
-    active: false,
-  });
-
-  if (!createdTab?.id) {
-    throw new Error("固定页面标签页创建失败");
-  }
-
-  try {
-    await waitForTabComplete(createdTab.id);
-    await sleep(2500);
-    return await capturePageFromTab(createdTab.id);
-  } finally {
-    await chrome.tabs.remove(createdTab.id).catch(() => {});
-  }
-}
-
-async function captureMachinePageByName(machineName) {
-  const expectedMachineName = String(machineName || "").trim();
-  const createdTab = await chrome.tabs.create({
-    url: FIXED_CAPTURE_URL,
-    active: false,
-  });
-
-  if (!createdTab?.id) {
-    throw new Error("机器列表标签页创建失败");
-  }
-
-  try {
-    await waitForTabComplete(createdTab.id);
-    await sleep(2500);
-
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: createdTab.id },
-      func: openMachineDetailByApi,
-      args: [expectedMachineName],
-    });
-
-    if (!result?.ok) {
-      const debugText = result?.debug ? `；调试信息：${JSON.stringify(result.debug)}` : "";
-      throw new Error(`${result?.error || `没有找到机器 ${expectedMachineName}`}${debugText}`);
-    }
-
-    await waitForTabUrlMatch(
-      createdTab.id,
-      /\/workspace\/ws-[A-Za-z0-9]+|\/job\/detail\/[^/?#]+/i
-    );
-    await sleep(2500);
-    const capture = await capturePageFromTab(createdTab.id);
-    const capturedName = getCaptureMachineName(capture);
-    if (
-      capturedName &&
-      normalizeMachineName(capturedName) !== normalizeMachineName(expectedMachineName)
-    ) {
-      throw new Error(
-        `抓取到的机器不是目标机器：期望 ${expectedMachineName}，实际 ${capturedName}，详情页 ${result.url || capture.url || ""}`
-      );
-    }
-    return {
-      ...capture,
-      url: result.url || capture.url || "",
-    };
-  } finally {
-    await chrome.tabs.remove(createdTab.id).catch(() => {});
-  }
-}
-
-async function waitForTabComplete(tabId, timeoutMs = 30000) {
-  const existingTab = await chrome.tabs.get(tabId);
-  if (existingTab.status === "complete") {
-    return;
-  }
-
-  await new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(handleUpdated);
-      reject(new Error("等待固定页面加载超时"));
-    }, timeoutMs);
-
-    function handleUpdated(updatedTabId, changeInfo) {
-      if (updatedTabId !== tabId || changeInfo.status !== "complete") {
-        return;
-      }
-
-      clearTimeout(timeoutId);
-      chrome.tabs.onUpdated.removeListener(handleUpdated);
-      resolve();
-    }
-
-    chrome.tabs.onUpdated.addListener(handleUpdated);
-  });
-}
-
-async function waitForTabUrlMatch(tabId, matcher, timeoutMs = 30000) {
-  const startedAt = Date.now();
-
-  while (Date.now() - startedAt < timeoutMs) {
-    const tab = await chrome.tabs.get(tabId);
-    if (matcher.test(tab.url || "")) {
-      return;
-    }
-    await sleep(300);
-  }
-
-  throw new Error("等待机器详情页打开超时");
-}
-
-async function downloadCapture(capture, suffix = "", saveAs = false) {
-  const exportPayload = buildExportPayload(capture);
-  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const basicInfoSection = (capture.standardized || []).find((section) => section?.key === "basicInfo");
-  const basicInfo = arrayToMap(basicInfoSection?.fields || []);
-  const fileId =
-    basicInfo.rjobId?.value ||
-    basicInfo.name?.value ||
-    basicInfo.rjobName?.value ||
-    `${capture.entityType || "capture"}-${Date.now()}`;
-  const suffixPart = suffix ? `-${suffix}` : "";
-
-  try {
-    await chrome.downloads.download({
-      url,
-      filename: `diagnosis-capture-${sanitizeFileName(fileId)}${suffixPart}.json`,
-      saveAs,
-    });
-  } finally {
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-}
-
-function buildExportPayload(capture) {
-  if (capture?.entityType !== "配额组") {
-    return capture;
-  }
-
-  const sectionMap = Object.fromEntries(
-    (capture.standardized || [])
-      .filter((section) => section?.key)
-      .map((section) => [section.key, section])
-  );
-
-  return {
-    basicInfo: fieldsToObject(sectionMap.basicInfo?.fields || []),
-    usageSummary: fieldsToObject(sectionMap.usageSummary?.fields || []),
-  };
-}
-
-function fieldsToObject(fields) {
-  return Object.fromEntries(
-    (fields || [])
-      .filter((field) => field?.key)
-      .map((field) => [field.key, field.value || ""])
-  );
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function openMachineDetailByApi(machineName) {
-  const target = String(machineName || "").trim();
-  if (!target) {
-    return { ok: false, error: "机器名为空" };
-  }
-
-  const resourceKindConfigs = [
-    {
-      queryResourceType: "workspace",
-      debugQueryMode: "workspace-label-exact",
-      exactNameLabelKey: "workspace.brainpp.cn/name",
-      apiBasePath: "/kapis/tenant.brainpp.cn/v1alpha1/tenants/ailab/resources",
-      buildDetailUrl({ origin, namespace, item }) {
-        return `${origin}/kubebrain/${namespace}/workspace/${item.name}?lang=zh_CN`;
-      },
-    },
-    {
-      queryResourceType: "worker",
-      debugQueryMode: "worker-label-exact",
-      exactNameLabelKey: "workspace.brainpp.cn/name",
-      apiBasePath: "/kapis/tenant.brainpp.cn/v1alpha1/tenants/ailab/resources",
-      buildDetailUrl({ origin, namespace, item }) {
-        const workspaceId = item?.labels?.["workspace.brainpp.cn/workspace"] || "";
-        if (!workspaceId) {
-          throw new Error("worker 结果缺少 workspace id");
-        }
-        return `${origin}/kubebrain/${namespace}/workspace/${workspaceId}/workerdetail/${namespace}/${item.name}?lang=zh_CN`;
-      },
-    },
-    {
-      queryResourceType: "rjob",
-      debugQueryMode: "rjob-keyword-exact-match",
-      exactNameLabelKey: "rjob.brainpp.cn/rjob-name",
-      apiBasePath: "/kapis/tenant.brainpp.cn/v1alpha1/tenants/ailab/projects/ailab-zskj/resources",
-      pageSize: "10",
-      resourceSubTypes: "rjob-normal",
-      useKeywordQuery: true,
-      buildDetailUrl({ origin, namespace, item }) {
-        return `${origin}/kubebrain/${namespace}/job/detail/${item.name}?lang=zh_CN`;
-      },
-    },
-  ];
-
-  const normalize = (value) => String(value || "").replace(/\s+/g, " ").trim();
-  const normalizeLower = (value) => normalize(value).toLowerCase();
-  const debug = {
-    target,
-    stage: "querying-api",
-    url: location.href,
-  };
-  function buildRequestUrl({
-    apiBasePath = "/kapis/tenant.brainpp.cn/v1alpha1/tenants/ailab/resources",
-    exactName = "",
-    resourceTypes = "workspace",
-    exactNameLabelKey = "workspace.brainpp.cn/name",
-    pageSize = "20",
-    resourceSubTypes = "",
-    useKeywordQuery = false,
-  }) {
-    const requestUrl = new URL(apiBasePath, location.origin);
-    requestUrl.searchParams.set("page", "1");
-    requestUrl.searchParams.set("pageSize", pageSize);
-    requestUrl.searchParams.set("sortBy", "createAt:desc");
-    const labelSelectorParts = [
-      "kubebrain.brainpp.cn/extraresourcetype notin (eval-job, train-job, datamaster-job)",
-    ];
-    if (exactName && !useKeywordQuery) {
-      labelSelectorParts.push(`${exactNameLabelKey}=${exactName}`);
-    }
-    requestUrl.searchParams.set(
-      "labelSelector",
-      labelSelectorParts.join(",")
-    );
-    if (exactName && useKeywordQuery) {
-      requestUrl.searchParams.set("keyword", exactName);
-    }
-    requestUrl.searchParams.set("resourceTypes", resourceTypes);
-    requestUrl.searchParams.set("resourceSubTypes", resourceSubTypes);
-    return requestUrl;
-  }
-
-  async function fetchWorkspacePage({
-    apiBasePath = "/kapis/tenant.brainpp.cn/v1alpha1/tenants/ailab/resources",
-    exactName = "",
-    resourceTypes = "workspace",
-    exactNameLabelKey = "workspace.brainpp.cn/name",
-    pageSize = "20",
-    resourceSubTypes = "",
-    useKeywordQuery = false,
-  }) {
-    const requestUrl = buildRequestUrl({
-      apiBasePath,
-      exactName,
-      resourceTypes,
-      exactNameLabelKey,
-      pageSize,
-      resourceSubTypes,
-      useKeywordQuery,
-    });
-    const response = await fetch(requestUrl.toString(), {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        Accept: "application/json, text/plain, */*",
-        "x-kb-site": "h",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`机器列表接口返回失败状态 ${response.status}`);
-    }
-
-    const payload = await response.json();
-    return {
-      requestUrl: requestUrl.toString(),
-      items: Array.isArray(payload?.data?.data) ? payload.data.data : [],
-      total: Number(payload?.data?.total || 0),
-    };
-  }
-
-  function findMatchedItem(items) {
-    return (
-      items.find((item) => normalizeLower(item?.annotations?.["kubebrain.brainpp.cn/showname"]) === normalizeLower(target)) ||
-      items.find((item) => normalizeLower(item?.labels?.["workspace.brainpp.cn/name"]) === normalizeLower(target)) ||
-      items.find((item) => normalizeLower(item?.labels?.["rjob.brainpp.cn/rjob-name"]) === normalizeLower(target)) ||
-      items.find((item) => normalizeLower(item?.name) === normalizeLower(target)) ||
-      null
-    );
-  }
-
-  let matchedItem = null;
-  let matchedConfig = null;
-  try {
-    debug.candidateResourceTypes = resourceKindConfigs.map((item) => item.queryResourceType);
-
-    for (const config of resourceKindConfigs) {
-      const primaryQuery = {
-        apiBasePath: config.apiBasePath,
-        exactName: target,
-        resourceTypes: config.queryResourceType,
-        exactNameLabelKey: config.exactNameLabelKey,
-        pageSize: config.pageSize || "20",
-        resourceSubTypes: config.resourceSubTypes || "",
-        useKeywordQuery: Boolean(config.useKeywordQuery),
-      };
-      const primaryResult = await fetchWorkspacePage(primaryQuery);
-      debug.apiBase = new URL(primaryQuery.apiBasePath, location.origin).toString();
-      debug.requestUrl = primaryResult.requestUrl;
-      debug.resultCount = primaryResult.items.length;
-      debug.resultNames = primaryResult.items
-        .slice(0, 8)
-        .map((item) => item?.labels?.["workspace.brainpp.cn/name"] || item?.name || "")
-        .filter(Boolean);
-      debug.queryMode = config.debugQueryMode;
-      debug.resourceTypes = primaryQuery.resourceTypes;
-      debug.exactNameLabelKey = primaryQuery.exactNameLabelKey;
-      debug.pageSize = primaryQuery.pageSize;
-      debug.resourceSubTypes = primaryQuery.resourceSubTypes;
-      debug.useKeywordQuery = primaryQuery.useKeywordQuery;
-
-      matchedItem = findMatchedItem(primaryResult.items);
-      if (matchedItem) {
-        matchedConfig = config;
-        break;
-      }
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      error: `调用机器列表接口失败：${error.message}`,
-      debug,
-    };
-  }
-
-  if (!matchedItem?.name) {
-    return {
-      ok: false,
-      error: `接口里没有找到机器 ${target}`,
-      debug,
-    };
-  }
-
-  const detailNamespace = matchedItem.namespace || "ailab-zskj";
-  const resourceKind = String(matchedItem.kind || "").toLowerCase();
-  const resolvedConfig =
-    matchedConfig ||
-    resourceKindConfigs.find((item) => item.queryResourceType === resourceKind) ||
-    resourceKindConfigs[0];
-  const detailUrl = resolvedConfig.buildDetailUrl({
-    origin: location.origin,
-    namespace: detailNamespace,
-    item: matchedItem,
-  });
-  const workspaceId =
-    matchedItem?.labels?.["workspace.brainpp.cn/workspace"] ||
-    matchedItem.name;
-  debug.stage = "navigating-to-detail";
-  debug.workspaceId = matchedItem.name;
-  debug.resourceKind = resourceKind || "workspace";
-  debug.parentWorkspaceId = workspaceId;
-  debug.namespace = detailNamespace;
-  debug.matchedDisplayName = matchedItem?.labels?.["workspace.brainpp.cn/name"] || "";
-  debug.detailUrl = detailUrl;
-  location.href = detailUrl;
-
-  return {
-    ok: true,
-    url: detailUrl,
-    debug,
-  };
 }
 
 function captureCurrentPage() {
@@ -611,43 +167,6 @@ function captureCurrentPage() {
   };
 
   function buildStandardizedCapture() {
-    if (pageSignals.entityType === "配额组") {
-      const usageSummary = structuredData.usageSummary || {};
-      return [
-        makeSection("basicInfo", "基本信息", [
-          makeField("name", "名称", structuredData.basicInfo?.name),
-          makeField("creator", "创建者", structuredData.basicInfo?.creator),
-          makeField("createdAt", "创建时间", structuredData.basicInfo?.createdAt),
-        ]),
-        makeSection("usageSummary", "使用情况", [
-          makeField("gpuUsageRate", "GPU 使用率", usageSummary.gpu?.usageRate),
-          makeField("gpuSystem", "GPU 系统", usageSummary.gpu?.system),
-          makeField("gpuUsed", "GPU 已使用", usageSummary.gpu?.used),
-          makeField("gpuReleasing", "GPU 释放中", usageSummary.gpu?.releasing),
-          makeField("gpuAvailable", "GPU 可使用", usageSummary.gpu?.available),
-          makeField("gpuTotal", "GPU 总量", usageSummary.gpu?.total),
-          makeField("cpuUsageRate", "CPU 使用率", usageSummary.cpu?.usageRate),
-          makeField("cpuSystem", "CPU 系统", usageSummary.cpu?.system),
-          makeField("cpuUsed", "CPU 已使用", usageSummary.cpu?.used),
-          makeField("cpuReleasing", "CPU 释放中", usageSummary.cpu?.releasing),
-          makeField("cpuAvailable", "CPU 可使用", usageSummary.cpu?.available),
-          makeField("cpuTotal", "CPU 总量", usageSummary.cpu?.total),
-          makeField("memoryUsageRate", "内存使用率", usageSummary.memory?.usageRate),
-          makeField("memorySystem", "内存系统", usageSummary.memory?.system),
-          makeField("memoryUsed", "内存已使用", usageSummary.memory?.used),
-          makeField("memoryReleasing", "内存释放中", usageSummary.memory?.releasing),
-          makeField("memoryAvailable", "内存可使用", usageSummary.memory?.available),
-          makeField("memoryTotal", "内存总量", usageSummary.memory?.total),
-          makeField("localDiskUsageRate", "本地盘使用率", usageSummary.localDisk?.usageRate),
-          makeField("localDiskSystem", "本地盘系统", usageSummary.localDisk?.system),
-          makeField("localDiskUsed", "本地盘已使用", usageSummary.localDisk?.used),
-          makeField("localDiskReleasing", "本地盘释放中", usageSummary.localDisk?.releasing),
-          makeField("localDiskAvailable", "本地盘可使用", usageSummary.localDisk?.available),
-          makeField("localDiskTotal", "本地盘总量", usageSummary.localDisk?.total),
-        ]),
-      ];
-    }
-
     if (pageSignals.entityType === "开发机") {
       const basicInfo = structuredData.basicInfo || {};
       const resources = structuredData.resources || {};
@@ -874,9 +393,6 @@ function captureCurrentPage() {
     const canvasNodes = Array.from(root.querySelectorAll("canvas"));
     const preNodes = Array.from(root.querySelectorAll("pre, code, textarea"));
     const iframeNodes = Array.from(root.querySelectorAll("iframe"));
-    const terminalTextCandidates = extractTerminalTextCandidates(root);
-    const terminalObjectCandidates = extractTerminalObjectCandidates(root);
-    const bestObjectCandidate = terminalObjectCandidates[0] || null;
 
     const readableTextCandidates = xtermNodes
       .map((node) => normalizeWhitespace(node.innerText || node.textContent || ""))
@@ -904,261 +420,9 @@ function captureCurrentPage() {
       preNodeCount: preNodes.length,
       iframeCount: iframeNodes.length,
       readableTextCandidates,
-      terminalTextCandidates: terminalTextCandidates.slice(0, 8),
-      terminalObjectCandidates: terminalObjectCandidates.slice(0, 5),
-      bestTerminalTextSample: bestObjectCandidate?.textSample || terminalTextCandidates[0]?.textSample || "",
-      bestTerminalTextLength: bestObjectCandidate?.textLength || terminalTextCandidates[0]?.textLength || 0,
       roleCandidates,
       panelTextLength: normalizeWhitespace(root.innerText || "").length,
     };
-  }
-
-  function extractTerminalTextCandidates(root) {
-    const selectorGroups = [
-      ".xterm-accessibility",
-      ".xterm-accessibility-tree",
-      ".xterm-rows",
-      ".xterm-screen",
-      "[class*='xterm-accessibility']",
-      "[class*='xterm-rows']",
-      "[class*='terminal']",
-      "[role='log']",
-      "[aria-live]",
-      "pre",
-      "code",
-      "textarea",
-    ];
-
-    const candidates = [];
-    const seen = new Set();
-
-    for (const selector of selectorGroups) {
-      const nodes = Array.from(root.querySelectorAll(selector));
-      for (const node of nodes) {
-        const rawText = sanitizeTerminalText(node.innerText || node.textContent || "");
-        if (!rawText) {
-          continue;
-        }
-
-        const dedupeKey = `${selector}::${rawText.slice(0, 200)}`;
-        if (seen.has(dedupeKey)) {
-          continue;
-        }
-        seen.add(dedupeKey);
-
-        candidates.push({
-          selector,
-          className: String(node.className || "").slice(0, 200),
-          textLength: rawText.length,
-          lineCount: rawText.split("\n").filter(Boolean).length,
-          textSample: rawText.slice(0, 4000),
-        });
-      }
-    }
-
-    return candidates.sort((a, b) => b.textLength - a.textLength);
-  }
-
-  function sanitizeTerminalText(value) {
-    const text = String(value || "")
-      .replace(/\u00a0/g, " ")
-      .replace(/\r/g, "")
-      .replace(/[ \t]+\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-
-    return text;
-  }
-
-  function extractTerminalObjectCandidates(root) {
-    const xtermNodes = Array.from(
-      root.querySelectorAll(
-        ".xterm, .xterm-screen, .xterm-rows, .xterm-accessibility, [class*='xterm'], [class*='terminal']"
-      )
-    );
-    const candidates = [];
-    const seen = new Set();
-
-    for (const node of xtermNodes) {
-      const attachedObjects = collectAttachedObjects(node);
-      for (const item of attachedObjects) {
-        const text = readTerminalTextFromObject(item.value);
-        if (!text) {
-          continue;
-        }
-
-        const dedupeKey = `${item.source}::${text.slice(0, 200)}`;
-        if (seen.has(dedupeKey)) {
-          continue;
-        }
-        seen.add(dedupeKey);
-
-        candidates.push({
-          source: item.source,
-          className: String(node.className || "").slice(0, 200),
-          textLength: text.length,
-          lineCount: text.split("\n").filter(Boolean).length,
-          textSample: text.slice(0, 4000),
-        });
-      }
-    }
-
-    return candidates.sort((a, b) => b.textLength - a.textLength);
-  }
-
-  function collectAttachedObjects(node) {
-    const results = [];
-    const seen = new Set();
-    const nodesToInspect = [node, node.parentElement, node.parentElement?.parentElement].filter(Boolean);
-
-    for (const currentNode of nodesToInspect) {
-      const propNames = Object.getOwnPropertyNames(currentNode).slice(0, 200);
-      for (const propName of propNames) {
-        let value;
-        try {
-          value = currentNode[propName];
-        } catch (error) {
-          continue;
-        }
-
-        if (!value || (typeof value !== "object" && typeof value !== "function")) {
-          continue;
-        }
-
-        if (!/term|xterm|core|react|fiber|props|state/i.test(propName)) {
-          continue;
-        }
-
-        if (seen.has(value)) {
-          continue;
-        }
-        seen.add(value);
-        results.push({
-          source: `${currentNode.className || currentNode.tagName}.${propName}`.slice(0, 200),
-          value,
-        });
-      }
-    }
-
-    return results;
-  }
-
-  function readTerminalTextFromObject(rootObject) {
-    const queue = [{ value: rootObject, path: "root", depth: 0 }];
-    const seen = new Set();
-
-    while (queue.length) {
-      const current = queue.shift();
-      const value = current.value;
-
-      if (!value || (typeof value !== "object" && typeof value !== "function")) {
-        continue;
-      }
-      if (seen.has(value)) {
-        continue;
-      }
-      seen.add(value);
-
-      const directText = tryReadTerminalBuffer(value);
-      if (directText) {
-        return directText;
-      }
-
-      if (current.depth >= 3) {
-        continue;
-      }
-
-      const keys = Object.getOwnPropertyNames(value).slice(0, 80);
-      for (const key of keys) {
-        if (!/core|term|xterm|buffer|service|react|fiber|props|state|owner|instance/i.test(key)) {
-          continue;
-        }
-
-        let child;
-        try {
-          child = value[key];
-        } catch (error) {
-          continue;
-        }
-
-        if (!child || (typeof child !== "object" && typeof child !== "function")) {
-          continue;
-        }
-
-        queue.push({
-          value: child,
-          path: `${current.path}.${key}`,
-          depth: current.depth + 1,
-        });
-      }
-    }
-
-    return "";
-  }
-
-  function tryReadTerminalBuffer(candidate) {
-    const attempts = [
-      () => readBufferLines(candidate?.buffer?.active),
-      () => readBufferLines(candidate?._core?.buffer?.active),
-      () => readBufferLines(candidate?._core?._bufferService?.buffer),
-      () => readBufferLines(candidate?.core?._bufferService?.buffer),
-      () => readBufferLines(candidate?.terminal?._core?._bufferService?.buffer),
-    ];
-
-    for (const attempt of attempts) {
-      try {
-        const text = sanitizeTerminalText(attempt());
-        if (text && text.length > 20) {
-          return text;
-        }
-      } catch (error) {
-        continue;
-      }
-    }
-
-    return "";
-  }
-
-  function readBufferLines(buffer) {
-    if (!buffer) {
-      return "";
-    }
-
-    const length = Number(buffer.length || buffer._length || buffer.baseY || 0);
-    const getLine =
-      typeof buffer.getLine === "function"
-        ? (index) => buffer.getLine(index)
-        : typeof buffer.lines?.get === "function"
-          ? (index) => buffer.lines.get(index)
-          : null;
-
-    if (!getLine) {
-      return "";
-    }
-
-    const lineCount = Math.min(length || 200, 200);
-    const start = Math.max(0, (length || lineCount) - lineCount);
-    const lines = [];
-
-    for (let index = start; index < start + lineCount; index += 1) {
-      const line = getLine(index);
-      if (!line) {
-        continue;
-      }
-
-      let text = "";
-      if (typeof line.translateToString === "function") {
-        text = line.translateToString(true);
-      } else if (typeof line.toString === "function") {
-        text = line.toString();
-      }
-
-      if (text) {
-        lines.push(text);
-      }
-    }
-
-    return lines.join("\n");
   }
 
   function extractBlueprintTables(root) {
@@ -1234,10 +498,6 @@ function captureCurrentPage() {
       ".gm-scrollbar-container",
       ".log_wrapper",
       ".replica_log_content",
-      ".xterm-accessibility",
-      ".xterm-accessibility-tree",
-      ".xterm-rows",
-      "[class*='terminal']",
       "section",
       "article",
       "pre",
@@ -1348,7 +608,7 @@ function captureCurrentPage() {
 
   function detectPageSignals(currentUrl, pageText) {
     const pathname = currentUrl.pathname;
-    const explicitTab = normalizeExplicitTab(currentUrl.searchParams.get("tab") || "");
+    const explicitTab = currentUrl.searchParams.get("tab") || "";
     const tabLabels = Array.from(document.querySelectorAll("[role='tab'], .ant-tabs-tab, .el-tabs__item, .tabs li, .tab"))
       .map((node) => normalizeWhitespace(node.innerText || ""))
       .filter(Boolean)
@@ -1371,10 +631,6 @@ function captureCurrentPage() {
   }
 
   function detectEntityType(pathname, pageText) {
-    if (/\/quota\/detail\//i.test(pathname) || /配额组详情|配额配置|人员信息|常规任务队列列表/.test(pageText)) {
-      return "配额组";
-    }
-
     if (/\/job\/detail\//i.test(pathname) || /RJob 名称|RJob ID|环境变量/.test(pageText)) {
       return "rjob";
     }
@@ -1405,21 +661,6 @@ function captureCurrentPage() {
     }
 
     return "";
-  }
-
-  function normalizeExplicitTab(rawTab) {
-    const normalized = String(rawTab || "").trim().toLowerCase();
-    const mapping = {
-      privatemachine: "私有机器",
-      usermanage: "用户管理",
-      usermanagement: "用户管理",
-      monitor: "监控",
-      cloudisk: "云盘管理",
-      clouddisk: "云盘管理",
-      quotauser: "用户管理",
-    };
-
-    return mapping[normalized] || rawTab;
   }
 
   function collectCommonFields() {
@@ -1478,9 +719,6 @@ function captureCurrentPage() {
 
   function collectStructuredData(entityType) {
     const basicInfoText = sectionBlocks.basicInfo || bodyText;
-    const quotaConfigText = sectionBlocks.quotaConfig || bodyText;
-    const memberInfoText = sectionBlocks.memberInfo || bodyText;
-    const usageSummaryText = sectionBlocks.usageSummary || bodyText;
     const envConfigText = sectionBlocks.envConfig || bodyText;
     const envVarsText = sectionBlocks.envVars || bodyText;
     const resourcesText = sectionBlocks.resources || bodyText;
@@ -1488,33 +726,6 @@ function captureCurrentPage() {
     const cloudDiskText = sectionBlocks.cloudDisk || bodyText;
     const otherInfoText = sectionBlocks.otherInfo || bodyText;
     const envVars = extractEnvironmentVariables(envVarsText);
-
-    if (entityType === "配额组") {
-      return {
-        entityType,
-        basicInfo: {
-          name: readFieldFromText(basicInfoText, ["名称"]),
-          creator: readFieldFromText(basicInfoText, ["创建者"]),
-          createdAt: readFieldFromText(basicInfoText, ["创建时间"]),
-        },
-        quotaConfig: {
-          gpu: readFieldFromText(quotaConfigText, ["GPU"]),
-          cpu: readFieldFromText(quotaConfigText, ["CPU"]),
-          memory: readFieldFromText(quotaConfigText, ["内存"]),
-          localDisk: readFieldFromText(quotaConfigText, ["本地盘"]),
-          cloudDiskHdd: readFieldFromText(quotaConfigText, ["云盘-HDD"]),
-          cloudDiskSsd: readFieldFromText(quotaConfigText, ["云盘-SSD"]),
-          objectStorage: readFieldFromText(quotaConfigText, ["对象存储"]),
-          nori: readFieldFromText(quotaConfigText, ["Nori"]),
-        },
-        usageSummary: extractQuotaUsageSummary(usageSummaryText || bodyText),
-        memberInfo: {
-          memberCount: readFieldFromText(memberInfoText, ["配额组人数"]),
-          administrators: extractQuotaAdministrators(memberInfoText || bodyText),
-          members: extractQuotaMembers(bodyText),
-        },
-      };
-    }
 
     if (entityType === "开发机") {
       return {
@@ -1730,9 +941,6 @@ function captureCurrentPage() {
 
   function buildSectionBlocks(text) {
     return {
-      quotaConfig: extractSectionText(text, "配额配置", ["人员信息", "使用情况", "常规任务队列列表", "用户管理", "计算实例", "预留资源池", "云盘管理", "私有机器", "监控"]),
-      memberInfo: extractSectionText(text, "人员信息", ["使用情况", "常规任务队列列表", "用户管理", "计算实例", "预留资源池", "云盘管理", "私有机器", "监控"]),
-      usageSummary: extractSectionText(text, "使用情况", ["机器状态", "序号", "名称", "展开筛选", "展开统计"]),
       basicInfo: extractSectionText(text, "基本信息", ["环境配置", "资源配置", "任务配置", "云盘配置", "其他信息", "子任务", "yaml", "状态日志", "日志", "历史副本"]),
       envConfig: extractSectionText(text, "环境配置", ["资源配置", "任务配置", "云盘配置", "其他信息", "子任务", "yaml", "状态日志", "日志", "历史副本"]),
       envVars: extractSectionText(text, "环境变量", ["资源配置", "任务配置", "云盘配置", "其他信息", "子任务", "yaml", "状态日志", "日志", "历史副本"]),
@@ -1760,129 +968,6 @@ function captureCurrentPage() {
     }
 
     return text.slice(sectionStart, endIndex).trim();
-  }
-
-  function extractQuotaUsageSummary(text) {
-    return {
-      gpu: extractQuotaMetric(text, "GPU"),
-      cpu: extractQuotaMetric(text, "CPU"),
-      memory: extractQuotaMetric(text, "内存"),
-      localDisk: extractQuotaMetric(text, "本地盘"),
-    };
-  }
-
-  function extractQuotaMetric(text, label) {
-    const compactText = String(text || "").replace(/\u00a0/g, " ");
-    const pattern = new RegExp(
-      `${label}[（(][^）)]+[）)]\\s*已使用\\s*([0-9.]+%)\\s*([0-9./\\s]+)\\s*系统/已使用/释放中/可使用/总量`,
-      "i"
-    );
-    const match = compactText.match(pattern);
-    if (!match) {
-      return {
-        usageRate: "",
-        system: "",
-        used: "",
-        releasing: "",
-        available: "",
-        total: "",
-      };
-    }
-
-    const parts = String(match[2] || "")
-      .split("/")
-      .map((item) => item.trim())
-      .filter((item) => item !== "");
-
-    return {
-      usageRate: String(match[1] || "").trim(),
-      system: parts[0] || "",
-      used: parts[1] || "",
-      releasing: parts[2] || "",
-      available: parts[3] || "",
-      total: parts[4] || "",
-    };
-  }
-
-  function extractQuotaAdministrators(text) {
-    const compactText = String(text || "").replace(/\u00a0/g, " ");
-    const match = compactText.match(/管理员[:：]?\s*([^\n]+)/);
-    return match?.[1]?.trim() || "";
-  }
-
-  function extractQuotaMembers(text) {
-    const lines = String(text || "")
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean);
-    const members = [];
-    let afterMemberCount = false;
-
-    for (const line of lines) {
-      if (/^配额组人数[:：]?/.test(line)) {
-        afterMemberCount = true;
-        continue;
-      }
-
-      if (!afterMemberCount) {
-        continue;
-      }
-
-      if (/^(常规任务队列列表|用户管理|计算实例|预留资源池|云盘管理|私有机器|监控)$/.test(line)) {
-        break;
-      }
-
-      if (/^(管理员|展开筛选|展开统计|使用情况)$/.test(line)) {
-        continue;
-      }
-
-      if (/^[A-Za-z0-9_.-]{2,}$/.test(line) || /^zs-[A-Za-z0-9_.-]+$/.test(line)) {
-        members.push(line);
-      }
-    }
-
-    return Array.from(new Set(members)).join(", ");
-  }
-
-  function extractQuotaMachineTable() {
-    if (pageSignals.entityType !== "配额组") {
-      return null;
-    }
-
-    const activePanel =
-      document.querySelector(".ant-tabs-tabpane-active") ||
-      document.querySelector(".el-tab-pane.is-active") ||
-      document.querySelector("[role='tabpanel'][aria-hidden='false']") ||
-      document.body;
-
-    const tables = Array.from(activePanel.querySelectorAll("table"));
-    for (const table of tables) {
-      const allRows = Array.from(table.querySelectorAll("tr"))
-        .map((row) =>
-          Array.from(row.querySelectorAll("th, td"))
-            .map((cell) => normalizeWhitespace(cell.innerText || ""))
-        )
-        .filter((cells) => cells.some(Boolean));
-
-      if (allRows.length < 2) {
-        continue;
-      }
-
-      const headers = allRows[0].filter(Boolean);
-      const rows = allRows
-        .slice(1)
-        .map((cells) => cells.slice(0, headers.length))
-        .filter((cells) => cells.some(Boolean));
-
-      if (
-        headers.some((header) => /机器状态|维护状态|污点|Pod个数|机器配置|组织|卡类型|可调度/.test(header)) &&
-        rows.length
-      ) {
-        return { headers, rows };
-      }
-    }
-
-    return null;
   }
 
   function extractEnvironmentVariables(text) {

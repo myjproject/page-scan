@@ -1,0 +1,13 @@
+{
+  "name": "status-log-llm-demo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.1",
+    "openai": "^6.2.0"
+  }
+}

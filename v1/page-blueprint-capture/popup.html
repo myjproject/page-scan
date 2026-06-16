@@ -11,17 +11,11 @@
       <header class="hero">
         <p class="eyebrow">Blueprint Mode</p>
         <h1>页面蓝本采集器</h1>
-        <p class="subtitle">既可以抓当前页，也可以忽略当前页，在后台打开实例管理页按机器名搜索后抓取指定机器。</p>
+        <p class="subtitle">尽可能吐出当前页结构，方便后续决定真正要采哪些字段。</p>
       </header>
 
       <section class="panel controls">
-        <label class="field">
-          <span>固定机器名</span>
-          <input id="machineNameInput" type="text" value="chengdong-dev" placeholder="输入开发机名称" />
-        </label>
-        <p class="hint">抓取指定机器页时，不要求你当前停在实例管理页；插件会在后台新开标签页去搜索并抓取。</p>
         <button id="captureBtn" class="primary">抓取当前页面</button>
-        <button id="capturePairBtn" class="secondary">后台抓取指定机器页</button>
         <button id="downloadBtn" class="secondary" disabled>导出 JSON</button>
         <p id="status" class="status">等待抓取</p>
       </section>

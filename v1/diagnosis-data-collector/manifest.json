@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "诊断数据采集器",
+  "version": "0.1.0",
+  "description": "面向后端诊断服务的稳定数据采集插件，只输出标准化结果。",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "downloads"
+  ],
+  "action": {
+    "default_title": "诊断数据采集器",
+    "default_popup": "popup.html"
+  }
+}
